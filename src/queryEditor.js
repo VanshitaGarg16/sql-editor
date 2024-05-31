@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import MonacoEditor from "@monaco-editor/react";
 import axios from 'axios';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const GitIntegration = () => {
   const [code, setCode] = useState('// type your code here');
-  const [filePath, setFilePath] = useState('index.js');
+  const [filePath, setFilePath] = useState('');
   const [commitMessage, setCommitMessage] = useState('Initial commit');
   const [username, setUsername] = useState('');
   const [repoName, setRepoName] = useState('');
@@ -73,9 +75,11 @@ const GitIntegration = () => {
         }
       );
       console.log('Code saved:', response.data);
+      toast.success('Code saved to GitHub successfully!');
     } catch (error) {
       console.error('Error saving code:', error);
       setError('Failed to save code to GitHub.');
+      toast.error('Failed to save code to GitHub.');
     } finally {
       setLoading(false);
     }
@@ -86,11 +90,7 @@ const GitIntegration = () => {
   return (
     <div className="max-w-4xl mx-auto p-6 bg-gray-50 rounded-lg shadow-md">
       <h1 className="text-2xl font-bold mb-6 text-center text-gray-800">GitHub Code Editor</h1>
-      {error && (
-        <div className="text-red-500 text-center mb-4">
-          {error}
-        </div>
-      )}
+      <ToastContainer />
       {!accessToken ? (
         <div className="text-center">
           <a
