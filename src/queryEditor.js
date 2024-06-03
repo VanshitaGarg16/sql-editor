@@ -5,7 +5,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 const GitIntegration = () => {
   const [code, setCode] = useState('// type your code here');
-  const [filePath, setFilePath] = useState('index.js');
+  const [filePath, setFilePath] = useState('query.txt');
   const [folderHandle, setFolderHandle] = useState(null);
   const [folderStructure, setFolderStructure] = useState([]);
 
