@@ -20,7 +20,7 @@ app.use(express.json());
 app.get('/repo-exists', async (req, res) => {
     const { username, repoName, accessToken } = req.query;
     try {
-      const response = await axios.get(`https://api.github.com/repos/${username}/${repoName}`, {
+      const response = await axios.get(`https://api.github.com/repos/${username}/${repoName}/contents/${filePath}`, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
@@ -34,6 +34,72 @@ app.get('/repo-exists', async (req, res) => {
       }
     }
   });
+
+  app.get('/get-username', async (req, res) => {
+    const { accessToken } = req.query;
+    try {
+      const response = await axios.get('https://api.github.com/user', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      res.json({ username: response.data.login });
+    } catch (error) {
+      console.error('Error fetching username:', error);
+      res.status(500).json({ error: 'Failed to fetch username' });
+    }
+  });
+
+  app.get('/get-repos', async (req, res) => {
+    const { accessToken } = req.query;
+    try {
+      const response = await axios.get('https://api.github.com/user/repos', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      res.json(response.data);
+    } catch (error) {
+      console.error('Error fetching repositories:', error);
+      res.status(500).json({ error: 'Failed to fetch repositories' });
+    }
+  });
+  
+  app.get('/get-branches', async (req, res) => {
+    const { username, repo, accessToken } = req.query;
+    try {
+      const response = await axios.get(`https://api.github.com/repos/${username}/${repo}/branches`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      res.json(response.data);
+    } catch (error) {
+      console.error('Error fetching branches:', error);
+      res.status(500).json({ error: 'Failed to fetch branches' });
+    }
+  });
+  
+  app.get('/get-files', async (req, res) => {
+    const { username, repo, branch, accessToken } = req.query;
+    try {
+      const response = await axios.get(`https://api.github.com/repos/${username}/${repo}/git/trees/${branch}?recursive=1`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      res.json(response.data.tree.filter(item => item.type === 'blob'));
+    } catch (error) {
+      console.error('Error fetching files:', error);
+      res.status(500).json({ error: 'Failed to fetch files' });
+    }
+  });
+  
+  app.get('/get-file-content', async (req, res) => {
+    const { username, repo, branch, path, accessToken } = req.query;
+    try {
+      const response = await axios.get(`https://api.github.com/repos/${username}/${repo}/contents/${path}?ref=${branch}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      res.json(response.data);
+    } catch (error) {
+      console.error('Error fetching file content:', error);
+      res.status(500).json({ error: 'Failed to fetch file content' });
+    }
+  });
+  
   
   // Endpoint to create a new repository
   app.post('/create-repo', async (req, res) => {
@@ -91,6 +157,50 @@ app.get('/callback', async (req, res) => {
   }
 });
 
+app.post('/update-file', async (req, res) => {
+  const { username, selectedRepo, selectedFile, code, commitMessage, accessToken } = req.body;
+
+  try {
+    // Fetch current file content
+    const response = await axios.get(`https://api.github.com/repos/${username}/${selectedRepo}/contents/${selectedFile}`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    const fileData = response.data;
+
+    // Update file content with new code
+    const updatedContent = Buffer.from(code).toString('base64');
+
+    // Create commit with updated file content
+    const commitResponse = await axios.put(`https://api.github.com/repos/${username}/${selectedRepo}/contents/${selectedFile}`, {
+      message: commitMessage,
+      content: updatedContent,
+      sha: fileData.sha, // SHA of the current file content
+    }, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    // Push changes to GitHub
+    await axios.post(`https://api.github.com/repos/${username}/${selectedRepo}/git/refs`, {
+          ref: 'refs/heads/main', // Assuming you're pushing changes to the main branch
+          sha: commitResponse.data.content.sha, // SHA of the new commit
+      }, {
+          headers: {
+              Authorization: `Bearer ${accessToken}`,
+          },
+      });
+    res.status(200).send('File updated and changes pushed to GitHub successfully!');
+  } catch (error) {
+    if (error.response && error.response.status === 422 && error.response.data.message === 'Reference already exists') {
+        res.status(200).send('Reference already exists.');
+    }
+  }
+});
+
 // Endpoint to exchange authorization code for access token
 app.post('/exchange-code', async (req, res) => {
   const { code } = req.query;
@@ -117,33 +227,6 @@ app.post('/exchange-code', async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
-
-// Endpoint to save code to GitHub repository
-app.post('/save-code', async (req, res) => {
-  const { username, repoName, filePath, commitMessage, code } = req.body;
-  const { authorization } = req.headers;
-  const accessToken = authorization.split(' ')[1];
-
-  try {
-    const response = await axios.put(
-      `https://api.github.com/repos/${username}/${repoName}/contents/${filePath}`,
-      {
-        message: commitMessage,
-        content: code,
-      },
-      {
-        headers: {
-          Authorization: `token ${accessToken}`,
-        },
-      }
-    );
-    res.json(response.data);
-  } catch (error) {
-    console.error('Error saving code:', error);
-    res.status(error.response.status).json({ error: error.response.statusText });
-  }
-});
-
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });
